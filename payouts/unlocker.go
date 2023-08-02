@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/math"
-
 	"main/rpc"
 	"main/storage"
 	"main/util"
@@ -28,10 +26,18 @@ type UnlockerConfig struct {
 }
 
 const minDepth = 16
-const byzantiumHardForkHeight = 4370000
+const londonBlockHeight = 15_787_969
+const arrowGlacierBlockHeight = 27_200_177
+const greyGlacierBlockHeight = 40_725_107
 
-var homesteadReward = math.MustParseBig256("5000000000000000000")
-var byzantiumReward = math.MustParseBig256("3000000000000000000")
+var (
+	FrontierBlockReward     = big.NewInt(4_000_000_000_000_000_000) // Block reward in wei for successfully mining a block ~Launch
+	LondonBlockReward       = big.NewInt(3_000_000_000_000_000_000) // Block reward in wei for successfully mining a block upward from London - ~4 Years
+	ArrowGlacierBlockReward = big.NewInt(2_000_000_000_000_000_000) // Block reward in wei for successfully mining a block upward from London - ~6 Years
+	GrayGlacierBlockReward  = big.NewInt(1_000_000_000_000_000_000) // Block reward in wei for successfully mining a block upward from London - ~9 Years
+
+	UncleBlockReward = big.NewInt(100_000_000_000_000_000) // block reward for every uncle block
+)
 
 type BlockUnlocker struct {
 	config   *UnlockerConfig
@@ -216,11 +222,6 @@ func (u *BlockUnlocker) handleBlock(block *rpc.GetBlockReply, candidate *storage
 	} else {
 		reward.Add(reward, extraTxReward)
 	}
-
-	// Add reward for including uncles
-	uncleReward := getRewardForUncle(candidate.Height)
-	rewardForUncles := big.NewInt(0).Mul(uncleReward, big.NewInt(int64(len(block.Uncles))))
-	reward.Add(reward, rewardForUncles)
 
 	candidate.Orphan = false
 	candidate.Hash = block.Hash
@@ -490,23 +491,26 @@ func weiToShannonInt64(wei *big.Rat) int64 {
 }
 
 func getConstReward(height int64) *big.Int {
-	if height >= byzantiumHardForkHeight {
-		return new(big.Int).Set(byzantiumReward)
+	switch {
+	case height >= londonBlockHeight:
+		return LondonBlockReward
+	case height >= arrowGlacierBlockHeight:
+		return ArrowGlacierBlockReward
+	case height >= greyGlacierBlockHeight:
+		return GrayGlacierBlockReward
+	default:
+		return FrontierBlockReward
 	}
-	return new(big.Int).Set(homesteadReward)
 }
 
 func getRewardForUncle(height int64) *big.Int {
-	reward := getConstReward(height)
-	return new(big.Int).Div(reward, new(big.Int).SetInt64(32))
+	// Uncle rewards are the same regardless of block height.
+	return UncleBlockReward
 }
 
 func getUncleReward(uHeight, height int64) *big.Int {
-	reward := getConstReward(height)
-	k := height - uHeight
-	reward.Mul(big.NewInt(8-k), reward)
-	reward.Div(reward, big.NewInt(8))
-	return reward
+	// Uncle rewards are the same regardless of block height.
+	return UncleBlockReward
 }
 
 func (u *BlockUnlocker) getExtraRewardForTx(block *rpc.GetBlockReply) (*big.Int, error) {
