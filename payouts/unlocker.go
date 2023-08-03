@@ -492,12 +492,12 @@ func weiToShannonInt64(wei *big.Rat) int64 {
 
 func getConstReward(height int64) *big.Int {
 	switch {
-	case height >= londonBlockHeight:
-		return LondonBlockReward
-	case height >= arrowGlacierBlockHeight:
-		return ArrowGlacierBlockReward
 	case height >= greyGlacierBlockHeight:
 		return GrayGlacierBlockReward
+	case height >= arrowGlacierBlockHeight:
+		return ArrowGlacierBlockReward
+	case height >= londonBlockHeight:
+		return LondonBlockReward
 	default:
 		return FrontierBlockReward
 	}
